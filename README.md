@@ -34,6 +34,18 @@ git clone <your-repo-url>
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
 ```
+### 4. Install dependencies
+```bash
+poetry install
+```
+### 4. Activate the virtual environment
+```bash
+poetry shell
+```
+### 4. Run the server in /metronome-app/onbeatmetronome$
+```bash
+python manage.py runserver
+```
 
 
 
