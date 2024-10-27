@@ -12,6 +12,8 @@ const bpmDisplay = document.getElementById("bpm-display");
 const bpmSlider = document.getElementById("bpm-slider");
 const startStopButton = document.getElementById("start-stop-button");
 
+const clickSound = new Audio('/static/metronome/click.mp3'); // Adjust the path if necessary
+
 // Update BPM display when the slider is moved
 bpmSlider.addEventListener("input", () => {
     bpm = bpmSlider.value; // Get value from slider
@@ -41,18 +43,32 @@ function startFlashing() {
     interval = setInterval(() => {
         flashingCircle.classList.toggle("active"); // Toggle active class for flashing
         flashingCircle.style.backgroundColor = flashingCircle.classList.contains("active") ? "red" : "white"; // Flash between red and white
+
+        // Play click sound on beat
+        playClickSound();
     }, (60000 / bpm) / 2); // Calculate interval time based on BPM
 }
 
 async function startMicrophoneAnalysis() {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const source = audioContext.createMediaStreamSource(microphone);
-    analyser = audioContext.createAnalyser();
-    source.connect(analyser);
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioContext.createMediaStreamSource(microphone);
+        analyser = audioContext.createAnalyser();
+        
+        // Create a GainNode for amplification (optional)
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 1; // You can adjust this value if needed
+        
+        source.connect(gainNode);
+        gainNode.connect(analyser);
 
-    isAnalyzing = true;
-    analyzeAudio(); // Start analyzing the audio
+        isAnalyzing = true;
+        analyzeAudio(); // Start analyzing the audio
+    } catch (error) {
+        console.error('Error accessing the microphone:', error);
+        alert('Could not access the microphone. Please check your settings.');
+    }
 }
 
 function analyzeAudio() {
@@ -69,8 +85,10 @@ function analyzeAudio() {
     requestAnimationFrame(analyzeAudio); // Repeat the analysis
 }
 
+const beatWindow = 100; // 100 ms window for detecting near beats
+let expectedBeatTime = 0; // Expected time for the next beat based on BPM
+
 function detectBeats(dataArray) {
-    // Find the maximum amplitude in the current frame
     let maxAmplitude = 0;
 
     for (let i = 0; i < dataArray.length; i++) {
@@ -80,17 +98,31 @@ function detectBeats(dataArray) {
         }
     }
 
-    // Check if the maximum amplitude exceeds the threshold
     const currentTime = audioContext.currentTime * 1000; // Convert to milliseconds
+
+    // Calculate the next expected beat time
+    expectedBeatTime += beatInterval; // Update for the next expected beat based on current BPM
+
+    // Check if the maximum amplitude exceeds the threshold
     if (maxAmplitude > amplitudeThreshold) {
-        // Check if enough time has passed since the last detected beat
-        if (currentTime - lastBeatTime > beatInterval) {
-            lastBeatTime = currentTime; // Update last beat time
+        // Check if clap is on beat
+        if (Math.abs(currentTime - expectedBeatTime) < beatWindow) {
+            // Clap is on beat
             flashingCircle.style.backgroundColor = "green"; // Set to green for a detected beat
-        } else {
+            playClickSound(); // Play click sound on beat detection
+        } else if (Math.abs(currentTime - expectedBeatTime) < beatWindow + 50) {
+            // Clap is almost on beat (within 50 ms of the expected beat)
             flashingCircle.style.backgroundColor = "yellow"; // Set to yellow if near the beat
+        } else {
+            // Off beat, you can set it back to default or do nothing
+            flashingCircle.style.backgroundColor = "red"; // Or keep it the default color
         }
     }
+}
+
+function playClickSound() {
+    clickSound.currentTime = 0; // Reset sound to start
+    clickSound.play(); // Play the click sound
 }
 
 function stopFlashing() {
