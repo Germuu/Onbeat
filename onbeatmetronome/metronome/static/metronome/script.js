@@ -79,12 +79,20 @@ function analyzeAudio() {
     requestAnimationFrame(analyzeAudio); // Repeat the analysis
 }
 
-const beatWindow = 150; // Time window for detecting near beats (milliseconds)
-let lastBeatTime = 0; // Timestamp of the last click sound played
-let expectedBeatTime = 0; // Expected time for the next beat based on BPM
-
 // Set the default color of the accuracy indicator to white at the start
 accuracyIndicator.style.backgroundColor = "white"; // Default color
+
+// Base window size in milliseconds for a reference BPM (e.g., 60 BPM)
+const baseBeatWindow = 150; // Window size for 60 BPM
+const referenceBPM = 60; // Reference BPM
+let lastBeatTime = 0; // Timestamp of the last click sound played
+let expectedBeatTime1 = 0; // Expected time for the last beat based on BPM
+let expectedBeatTime2 = 0; // Expected time for the second last beat based on BPM
+
+function calculateDynamicBeatWindow(bpm) {
+    // Calculate the dynamic beat window based on the current BPM
+    return baseBeatWindow * (bpm / referenceBPM);
+}
 
 function detectBeats(dataArray) {
     let maxAmplitude = 0;
@@ -97,6 +105,7 @@ function detectBeats(dataArray) {
     }
 
     const currentTime = audioContext.currentTime * 1000; // Convert to milliseconds
+    const dynamicBeatWindow = calculateDynamicBeatWindow(bpm); // Calculate the current dynamic beat window
 
     // Check if the maximum amplitude exceeds the threshold
     if (maxAmplitude > 0.045) { // Set a threshold to avoid false positives
@@ -104,16 +113,22 @@ function detectBeats(dataArray) {
         if (accuracyIndicator.style.backgroundColor === "white") {
             accuracyIndicator.style.backgroundColor = "transparent"; // Hide the color initially
         }
-        
+
+        // Calculate the average of the last two expected beat times
+        const averageExpectedBeatTime = (expectedBeatTime1 + expectedBeatTime2) / 2;
+
         // Check if user input aligns with the expected beat
-        if (Math.abs(currentTime - expectedBeatTime) < beatWindow) {
-            // On beat detected
+        if (Math.abs(currentTime - expectedBeatTime1) < dynamicBeatWindow) {
+            // On beat detected (within the dynamic beat window)
             accuracyIndicator.style.backgroundColor = "green"; // Set accuracy to green
-        } else if (Math.abs(currentTime - expectedBeatTime) < beatWindow + 100) {
-            // Almost on beat (within a wider range)
+        } else if (Math.abs(currentTime - expectedBeatTime1) < dynamicBeatWindow + 50) {
+            // Almost on beat (within a slightly wider range)
             accuracyIndicator.style.backgroundColor = "yellow"; // Set accuracy to yellow
+        } else if (currentTime < expectedBeatTime1) {
+            // Early input (before the expected beat time)
+            accuracyIndicator.style.backgroundColor = "red"; // Set accuracy to red for early input
         } else {
-            // Off beat, set accuracy to red
+            // Off beat, set accuracy to red (this includes late inputs)
             accuracyIndicator.style.backgroundColor = "red"; // Off beat
         }
     }
@@ -123,8 +138,9 @@ function detectBeats(dataArray) {
 function playClickSound() {
     clickSound.currentTime = 0; // Reset sound to start
     clickSound.play(); // Play the click sound
-    // Update expected beat time for the next beat
-    expectedBeatTime += 60000 / bpm; // Update expected time for the next beat based on current BPM
+    // Update expected beat times for the next beats
+    expectedBeatTime2 = expectedBeatTime1; // Store the last expected beat time
+    expectedBeatTime1 += 60000 / bpm; // Update expected time for the next beat based on current BPM
 }
 
 function stopFlashing() {
