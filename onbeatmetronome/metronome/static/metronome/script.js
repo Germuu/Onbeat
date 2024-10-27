@@ -79,9 +79,12 @@ function analyzeAudio() {
     requestAnimationFrame(analyzeAudio); // Repeat the analysis
 }
 
-const beatWindow = 200; // Time window for detecting near beats (milliseconds)
+const beatWindow = 150; // Time window for detecting near beats (milliseconds)
 let lastBeatTime = 0; // Timestamp of the last click sound played
 let expectedBeatTime = 0; // Expected time for the next beat based on BPM
+
+// Set the default color of the accuracy indicator to white at the start
+accuracyIndicator.style.backgroundColor = "white"; // Default color
 
 function detectBeats(dataArray) {
     let maxAmplitude = 0;
@@ -96,7 +99,12 @@ function detectBeats(dataArray) {
     const currentTime = audioContext.currentTime * 1000; // Convert to milliseconds
 
     // Check if the maximum amplitude exceeds the threshold
-    if (maxAmplitude > 0.05) { // Set a threshold to avoid false positives
+    if (maxAmplitude > 0.045) { // Set a threshold to avoid false positives
+        // Set the accuracy indicator to show color only after the first detection
+        if (accuracyIndicator.style.backgroundColor === "white") {
+            accuracyIndicator.style.backgroundColor = "transparent"; // Hide the color initially
+        }
+        
         // Check if user input aligns with the expected beat
         if (Math.abs(currentTime - expectedBeatTime) < beatWindow) {
             // On beat detected
@@ -110,6 +118,7 @@ function detectBeats(dataArray) {
         }
     }
 }
+
 
 function playClickSound() {
     clickSound.currentTime = 0; // Reset sound to start
