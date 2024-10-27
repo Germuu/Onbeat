@@ -1,0 +1,21 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metronome</title>
+    <link rel="stylesheet" href="{% static 'metronome/styles.css' %}">
+</head>
+<body>
+    <div class="metronome-container">
+        <h1>Metronome</h1>
+        <p>BPM: <span id="bpm-display">60</span></p>
+        <input type="range" id="bpm-slider" min="40" max="200" value="60" step="1">
+        <br>
+        <button id="start-stop-button" class="button">Start</button>
+        <div id="flashing-circle"></div>
+    </div>
+    <script src="{% static 'metronome/script.js' %}"></script>
+</body>
+</html>

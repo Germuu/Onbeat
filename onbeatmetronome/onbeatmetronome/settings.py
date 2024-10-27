@@ -122,3 +122,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+STATIC_URL = '/static/'
+
+# Add this line if it’s not present to ensure Django can find your static files.
+STATICFILES_DIRS = [
+    BASE_DIR / 'metronome/static',  # Adjust this path if necessary
+]
