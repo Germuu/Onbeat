@@ -4,10 +4,8 @@ let audioContext;
 let analyser;
 let microphone;
 let isAnalyzing = false;
-let lastBeatTime = 0; // Timestamp of the last detected beat
-const beatInterval = 60000 / bpm; // Time between beats based on BPM
-const amplitudeThreshold = 0.02; // Threshold to detect a beat
 const flashingCircle = document.getElementById("flashing-circle");
+const accuracyIndicator = document.getElementById("accuracy-indicator"); // Accuracy indicator element
 const bpmDisplay = document.getElementById("bpm-display");
 const bpmSlider = document.getElementById("bpm-slider");
 const startStopButton = document.getElementById("start-stop-button");
@@ -43,10 +41,8 @@ function startFlashing() {
     interval = setInterval(() => {
         flashingCircle.classList.toggle("active"); // Toggle active class for flashing
         flashingCircle.style.backgroundColor = flashingCircle.classList.contains("active") ? "red" : "white"; // Flash between red and white
-
-        // Play click sound on beat
-        playClickSound();
-    }, (60000 / bpm) / 2); // Calculate interval time based on BPM
+        playClickSound(); // Play click sound on metronome beat
+    }, (60000 / bpm)); // Calculate interval time based on BPM
 }
 
 async function startMicrophoneAnalysis() {
@@ -78,14 +74,13 @@ function analyzeAudio() {
     const dataArray = new Uint8Array(bufferLength);
 
     analyser.getByteTimeDomainData(dataArray);
-
-    // Perform beat detection here
     detectBeats(dataArray); // Call your beat detection logic
 
     requestAnimationFrame(analyzeAudio); // Repeat the analysis
 }
 
-const beatWindow = 100; // 100 ms window for detecting near beats
+const beatWindow = 200; // Time window for detecting near beats (milliseconds)
+let lastBeatTime = 0; // Timestamp of the last click sound played
 let expectedBeatTime = 0; // Expected time for the next beat based on BPM
 
 function detectBeats(dataArray) {
@@ -100,22 +95,18 @@ function detectBeats(dataArray) {
 
     const currentTime = audioContext.currentTime * 1000; // Convert to milliseconds
 
-    // Calculate the next expected beat time
-    expectedBeatTime += beatInterval; // Update for the next expected beat based on current BPM
-
     // Check if the maximum amplitude exceeds the threshold
-    if (maxAmplitude > amplitudeThreshold) {
-        // Check if clap is on beat
+    if (maxAmplitude > 0.05) { // Set a threshold to avoid false positives
+        // Check if user input aligns with the expected beat
         if (Math.abs(currentTime - expectedBeatTime) < beatWindow) {
-            // Clap is on beat
-            flashingCircle.style.backgroundColor = "green"; // Set to green for a detected beat
-            playClickSound(); // Play click sound on beat detection
-        } else if (Math.abs(currentTime - expectedBeatTime) < beatWindow + 50) {
-            // Clap is almost on beat (within 50 ms of the expected beat)
-            flashingCircle.style.backgroundColor = "yellow"; // Set to yellow if near the beat
+            // On beat detected
+            accuracyIndicator.style.backgroundColor = "green"; // Set accuracy to green
+        } else if (Math.abs(currentTime - expectedBeatTime) < beatWindow + 100) {
+            // Almost on beat (within a wider range)
+            accuracyIndicator.style.backgroundColor = "yellow"; // Set accuracy to yellow
         } else {
-            // Off beat, you can set it back to default or do nothing
-            flashingCircle.style.backgroundColor = "red"; // Or keep it the default color
+            // Off beat, set accuracy to red
+            accuracyIndicator.style.backgroundColor = "red"; // Off beat
         }
     }
 }
@@ -123,6 +114,8 @@ function detectBeats(dataArray) {
 function playClickSound() {
     clickSound.currentTime = 0; // Reset sound to start
     clickSound.play(); // Play the click sound
+    // Update expected beat time for the next beat
+    expectedBeatTime += 60000 / bpm; // Update expected time for the next beat based on current BPM
 }
 
 function stopFlashing() {
@@ -132,5 +125,6 @@ function stopFlashing() {
     clearInterval(interval); // Stop flashing
     flashingCircle.classList.remove("active"); // Ensure circle is not active
     flashingCircle.style.backgroundColor = "red"; // Reset to red when stopped
+    accuracyIndicator.style.backgroundColor = "white"; // Reset accuracy indicator
     audioContext.close(); // Close the audio context
 }

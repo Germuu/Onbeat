@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metronome</title>
+    <link rel="icon" href="{% static 'metronome/favicon.ico' %}" type="image/x-icon"> <!-- Optional favicon -->
     <link rel="stylesheet" href="{% static 'metronome/styles.css' %}">
 </head>
 <body>
@@ -15,6 +16,7 @@
         <br>
         <button id="start-stop-button" class="button">Start</button>
         <div id="flashing-circle"></div>
+        <div id="accuracy-indicator" class="accuracy-circle" style="width: 50px; height: 50px; border-radius: 50%; margin: 10px auto;"></div> <!-- Accuracy indicator -->
     </div>
     <script src="{% static 'metronome/script.js' %}"></script>
 </body>

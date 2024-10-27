@@ -28,3 +28,13 @@ body {
 #flashing-circle.active {
     background-color: #f00; /* Flashing color */
 }
+
+#accuracy-indicator {
+    width: 100px; /* Adjust size as needed */
+    height: 100px; /* Adjust size as needed */
+    border-radius: 50%;
+    border: 5px solid black; /* Outline color */
+    margin-top: 20px; /* Space between indicators */
+    background-color: red; /* Default color */
+    transition: background-color 0.3s; /* Smooth color transition */
+}
