@@ -12,13 +12,14 @@ const startStopButton = document.getElementById("start-stop-button");
 
 const clickSound = new Audio('/static/metronome/click.mp3'); // Adjust the path if necessary
 
-// Update BPM display when the slider is moved
+// Update BPM display and recalculate expected beat time when the slider is moved
 bpmSlider.addEventListener("input", () => {
     bpm = bpmSlider.value; // Get value from slider
     bpmDisplay.textContent = bpm; // Update the displayed BPM
     if (isPlaying) {
         clearInterval(interval); // Clear existing interval
         startFlashing(); // Restart flashing with new BPM
+        updateExpectedBeatTime(); // Recalculate expected beat times
     }
 });
 
@@ -27,32 +28,52 @@ startStopButton.addEventListener("click", async () => {
     if (isPlaying) {
         stopFlashing(); // Stop if already playing
     } else {
+        await initializeAudio(); // Initialize audio components if necessary
         startFlashing(); // Start flashing if not playing
-        await startMicrophoneAnalysis(); // Start analyzing the microphone input
     }
 });
 
-// This function will manage the flashing behavior
-let interval;
+// Function to initialize audio components if needed
+async function initializeAudio() {
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume(); // Resume if suspended
+    }
+    if (!microphone) {
+        await startMicrophoneAnalysis();
+    }
+}
+
+
+
+// Start flashing function using requestAnimationFrame for improved timing
+let lastFlashTime = 0;
 function startFlashing() {
     isPlaying = true;
-    startStopButton.textContent = "Stop"; // Change button text
-    flashingCircle.style.backgroundColor = "red"; // Set default color to red
-    interval = setInterval(() => {
-        flashingCircle.classList.toggle("active"); // Toggle active class for flashing
-        flashingCircle.style.backgroundColor = flashingCircle.classList.contains("active") ? "red" : "white"; // Flash between red and white
-        playClickSound(); // Play click sound on metronome beat
-    }, (60000 / bpm)); // Calculate interval time based on BPM
+    startStopButton.textContent = "Stop";
+    flashingCircle.style.backgroundColor = "red";
+
+    function flash() {
+        const currentTime = audioContext.currentTime * 1000;
+        if (currentTime - lastFlashTime >= (60000 / bpm)) {
+            lastFlashTime = currentTime;
+            flashingCircle.classList.toggle("active");
+            flashingCircle.style.backgroundColor = flashingCircle.classList.contains("active") ? "red" : "white";
+            playClickSound();
+        }
+        if (isPlaying) requestAnimationFrame(flash);
+    }
+
+    requestAnimationFrame(flash);
 }
 
 async function startMicrophoneAnalysis() {
     try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const source = audioContext.createMediaStreamSource(microphone);
+        const source = audioContext.createMediaStreamSource(await navigator.mediaDevices.getUserMedia({ audio: true }));
         analyser = audioContext.createAnalyser();
         
-        // Create a GainNode for amplification (optional)
         const gainNode = audioContext.createGain();
         gainNode.gain.value = 1; // You can adjust this value if needed
         
@@ -82,16 +103,22 @@ function analyzeAudio() {
 // Set the default color of the accuracy indicator to white at the start
 accuracyIndicator.style.backgroundColor = "white"; // Default color
 
-// Base window size in milliseconds for a reference BPM (e.g., 60 BPM)
-const baseBeatWindow = 150; // Window size for 60 BPM
-const referenceBPM = 60; // Reference BPM
 let lastBeatTime = 0; // Timestamp of the last click sound played
 let expectedBeatTime1 = 0; // Expected time for the last beat based on BPM
 let expectedBeatTime2 = 0; // Expected time for the second last beat based on BPM
 
+// Function to calculate dynamic beat window
+const baseBeatWindow = (60000 / 60) / 3; // Half the interval for 60 BPM, so 500 ms
+const referenceBPM = 60; // Reference BPM
+
 function calculateDynamicBeatWindow(bpm) {
-    // Calculate the dynamic beat window based on the current BPM
-    return baseBeatWindow * (bpm / referenceBPM);
+    return baseBeatWindow * (referenceBPM / bpm);
+}
+
+// Function to update expected beat time whenever BPM changes
+function updateExpectedBeatTime() {
+    expectedBeatTime1 = audioContext.currentTime * 1000 + (60000 / bpm); // Start time plus interval
+    expectedBeatTime2 = expectedBeatTime1 - (60000 / bpm); // Set expected time for two beats ago
 }
 
 function detectBeats(dataArray) {
@@ -106,50 +133,39 @@ function detectBeats(dataArray) {
 
     const currentTime = audioContext.currentTime * 1000; // Convert to milliseconds
     const dynamicBeatWindow = calculateDynamicBeatWindow(bpm); // Calculate the current dynamic beat window
+    const halfBeatWindow = (60000 / bpm) / 2; // Set half-beat window
 
     // Check if the maximum amplitude exceeds the threshold
     if (maxAmplitude > 0.045) { // Set a threshold to avoid false positives
-        // Set the accuracy indicator to show color only after the first detection
         if (accuracyIndicator.style.backgroundColor === "white") {
             accuracyIndicator.style.backgroundColor = "transparent"; // Hide the color initially
         }
 
-        // Calculate the average of the last two expected beat times
-        const averageExpectedBeatTime = (expectedBeatTime1 + expectedBeatTime2) / 2;
-
-        // Check if user input aligns with the expected beat
-        if (Math.abs(currentTime - expectedBeatTime1) < dynamicBeatWindow) {
-            // On beat detected (within the dynamic beat window)
-            accuracyIndicator.style.backgroundColor = "green"; // Set accuracy to green
-        } else if (Math.abs(currentTime - expectedBeatTime1) < dynamicBeatWindow + 50) {
-            // Almost on beat (within a slightly wider range)
-            accuracyIndicator.style.backgroundColor = "yellow"; // Set accuracy to yellow
-        } else if (currentTime < expectedBeatTime1) {
-            // Early input (before the expected beat time)
-            accuracyIndicator.style.backgroundColor = "red"; // Set accuracy to red for early input
+        // Determine if input is within full beat or off-beat intervals
+        if (Math.abs(currentTime - expectedBeatTime1) > dynamicBeatWindow) {
+            accuracyIndicator.style.backgroundColor = "green"; // Perfectly on beat
+        } else if (Math.abs(currentTime - expectedBeatTime1) > dynamicBeatWindow + 50) {
+            accuracyIndicator.style.backgroundColor = "yellow"; // Almost on beat
+        } else if (Math.abs(currentTime - expectedBeatTime1) < halfBeatWindow) {
+            accuracyIndicator.style.backgroundColor = "red"; // Off beat, within silence window
         } else {
-            // Off beat, set accuracy to red (this includes late inputs)
-            accuracyIndicator.style.backgroundColor = "red"; // Off beat
+            accuracyIndicator.style.backgroundColor = "red"; // Early or late
         }
     }
 }
 
-
 function playClickSound() {
-    clickSound.currentTime = 0; // Reset sound to start
-    clickSound.play(); // Play the click sound
-    // Update expected beat times for the next beats
-    expectedBeatTime2 = expectedBeatTime1; // Store the last expected beat time
-    expectedBeatTime1 += 60000 / bpm; // Update expected time for the next beat based on current BPM
+    clickSound.currentTime = 0;
+    clickSound.play();
+    updateExpectedBeatTime(); // Update expected beat times for the next beat
 }
 
 function stopFlashing() {
     isPlaying = false;
     isAnalyzing = false; // Stop analyzing audio
-    startStopButton.textContent = "Start"; // Reset button text
-    clearInterval(interval); // Stop flashing
-    flashingCircle.classList.remove("active"); // Ensure circle is not active
-    flashingCircle.style.backgroundColor = "red"; // Reset to red when stopped
-    accuracyIndicator.style.backgroundColor = "white"; // Reset accuracy indicator
-    audioContext.close(); // Close the audio context
+    startStopButton.textContent = "Start";
+    flashingCircle.classList.remove("active");
+    flashingCircle.style.backgroundColor = "red";
+    accuracyIndicator.style.backgroundColor = "white";
+    // Note: audioContext.close() is removed to allow restart after stopping
 }
